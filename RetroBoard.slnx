@@ -2,6 +2,7 @@
   <Project Path="src/RetroBoard.Api/RetroBoard.Api.csproj" />
   <Project Path="src/RetroBoard.Client/RetroBoard.Client.csproj" />
   <Project Path="src/RetroBoard.Infrastructure/RetroBoard.Infrastructure.csproj" />
+  <Project Path="src/RetroBoard.Tests.Benchmarks/RetroBoard.Tests.Benchmarks.csproj" />
   <Project Path="src/RetroBoard.Tests.Component/RetroBoard.Tests.Component.csproj" />
   <Project Path="src/RetroBoard.Tests.Integration/RetroBoard.Tests.Integration.csproj" />
   <Project Path="src/RetroBoard.Tests.LoadTest/RetroBoard.Tests.LoadTest.csproj" />

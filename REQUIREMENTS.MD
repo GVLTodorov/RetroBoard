@@ -192,6 +192,16 @@ benchmarks/load tests — same posture as PlanningPoker's
   hottest path (every card add/vote fans out to every connected participant).
 - Broadcast only the state diff a client needs, not the full board payload, where practical.
 - Response compression (Brotli/Gzip) for the static Blazor WASM assets.
+- Track the published Blazor WASM bundle size and flag/fail on regressions past a set threshold,
+  since download size is the primary perf metric users actually feel —
+  `src/RetroBoard.Client/scripts/check-bundle-size.ps1` checks the Brotli-compressed `_framework`
+  total against a 4 MiB budget (measured baseline ~2.3 MB), same script PlanningPoker uses. Runs
+  as CI's `bundle-size` job, non-gating (informational, like coverage).
+- Micro-benchmarks (BenchmarkDotNet) for hot paths: domain mutation (`AddCard`/`CastVote`/
+  `GetState`) and hub-message serialization (source-generated vs. reflection). CI's `benchmarks`
+  job runs `RetroBoard.Tests.Benchmarks` with a shortened job (`--job short`) and publishes each
+  class's results table to the job summary plus the full CSV/HTML/markdown artifacts, non-gating
+  — same treatment as bundle-size.
 - Expected rule violations (non-facilitator trying to reveal/advance/remove, voting past budget,
   ...) raised as built-in .NET exception types, translated to `HubException` by a single SignalR
   hub filter — same tradeoff PlanningPoker made, not a custom exception hierarchy.

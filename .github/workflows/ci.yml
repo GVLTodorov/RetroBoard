@@ -53,6 +53,59 @@ jobs:
           name: coverage-report
           path: ./coverage/report/
 
+  # Tracks the Blazor WASM download size -- "the primary perf metric users actually feel"
+  # (REQUIREMENTS.MD Section 9). Deliberately not in `release`'s `needs:`: perf checks don't gate
+  # every commit the way the test suite does.
+  bundle-size:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Check bundle size
+        shell: pwsh
+        run: ./src/RetroBoard.Client/scripts/check-bundle-size.ps1
+
+  # Micro-benchmarks for domain hot paths and JSON serialization (REQUIREMENTS.MD Section 9).
+  # `--job short` trades precision for a runtime that fits a shared CI runner; same non-gating
+  # treatment as bundle-size -- these track trends, they don't block a commit over CI-runner noise.
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Run benchmarks
+        working-directory: src/RetroBoard.Tests.Benchmarks
+        run: dotnet run -c Release -- --filter '*' --job short
+
+      - name: Add report to job summary
+        if: always()
+        working-directory: src/RetroBoard.Tests.Benchmarks
+        run: |
+          for f in BenchmarkDotNet.Artifacts/results/*-report-github.md; do
+            echo "### $(basename "$f" -report-github.md)" >> "$GITHUB_STEP_SUMMARY"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: benchmark-results
+          path: src/RetroBoard.Tests.Benchmarks/BenchmarkDotNet.Artifacts/
+
   # Gated on `test` -- same tag-bump/build/push shape as the sibling PlanningPoker project's
   # pipeline (REQUIREMENTS.MD Section 3), so the version bump and image push never happen on a
   # broken build.

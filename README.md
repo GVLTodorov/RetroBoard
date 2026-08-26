@@ -108,6 +108,8 @@ src/RetroBoard.Tests.Play/         Playwright: drives 5 real browser sessions th
                                     UI to record the README's demo GIF (manual, see Testing below)
 src/RetroBoard.Tests.LoadTest/     N boards x M participants over real SignalR connections,
                                     reporting AddCard/export latency under load (manual)
+src/RetroBoard.Tests.Benchmarks/   BenchmarkDotNet: domain hot paths (AddCard/CastVote/GetState)
+                                    and hub-message serialization (source-gen vs. reflection)
 ```
 
 The Client depends only on Contracts — never Domain — so the browser bundle never ships
@@ -123,6 +125,11 @@ Runs the unit, component, and integration suites together. The [CI workflow](.gi
 runs the same command on every push/PR and gates the version-bump/image-build/push job on it
 passing. It also collects code coverage and publishes an HTML report (the `coverage-report`
 artifact) plus a summary in the job summary — informational only, not gated on a threshold.
+
+The same CI workflow also runs two non-gating perf jobs on every push/PR: `bundle-size` (checks
+the published Blazor WASM bundle's Brotli size against a budget,
+[script](src/RetroBoard.Client/scripts/check-bundle-size.ps1)) and `benchmarks` (BenchmarkDotNet
+over `RetroBoard.Tests.Benchmarks`, results published to the job summary).
 
 `RetroBoard.Tests.Integration` includes a small, deliberately isolated
 `BoardHubDisconnectSweepTests.cs` file whose tests each wait out a real 15-second reconnect/empty-
