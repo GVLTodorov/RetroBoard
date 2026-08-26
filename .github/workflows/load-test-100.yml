@@ -1,4 +1,4 @@
-name: Load Test (20 Boards x 20 Participants)
+name: Load Test (100 Boards x 5 Participants)
 
 # Manual only: drives N boards x M participants (real SignalR connections, no browsers) against a
 # live instance, has every participant write K cards, then exports every board as its facilitator
@@ -7,39 +7,41 @@ name: Load Test (20 Boards x 20 Participants)
 # this class of test (REQUIREMENTS.MD Section 9's load/soak-test bullet): scale like this isn't
 # meant to block every push/PR, only to be run on demand from the Actions tab.
 #
-# Default is 20x20 (400 connections), not the tool's full 100x100 (10,000 connections) capability:
-# a real 100x100 run was tried on a standard GitHub-hosted runner (2 CPU / 7 GB RAM) and crashed
-# about 20 minutes in with a plain "Connection reset by peer" -- the API's own log showed no
-# exception, so this reads as the small shared runner running out of some resource (file
-# descriptors, memory, or similar) under 10,000 real concurrent connections, not an app bug. 20x20
-# reliably completes on a standard runner; use the inputs below (or run the tool directly against
-# bigger/self-hosted infrastructure) to push back up toward 100x100.
+# Default is 100 boards x 5 participants x 3 cards (500 connections, 1,500 AddCard calls, then 100
+# exports) -- 100 concurrent retros of a realistic size, rather than 100 boards each with 100
+# participants. A 100x100 (10,000-connection) run was also tried, on a standard GitHub-hosted
+# runner (2 CPU / 7 GB RAM): it ran for about 20 minutes before hitting a plain "Connection reset by
+# peer" with no corresponding exception in the API's own log -- reads as the small shared runner
+# running out of some resource under that many real concurrent connections, not an app bug. The
+# inputs below can still push scale up toward that (or further, against bigger/self-hosted
+# infrastructure); `set -o pipefail` ensures a crash like that surfaces as a genuine failed run
+# rather than a false green.
 on:
   workflow_dispatch:
     inputs:
       board_count:
         description: Number of boards
         required: false
-        default: "20"
+        default: "100"
       participants_per_board:
         description: Participants per board
         required: false
-        default: "20"
+        default: "5"
       cards_per_participant:
         description: Cards each participant writes
         required: false
-        default: "5"
+        default: "3"
   workflow_call:
     inputs:
       board_count:
         type: string
-        default: "20"
+        default: "100"
       participants_per_board:
         type: string
-        default: "20"
+        default: "5"
       cards_per_participant:
         type: string
-        default: "5"
+        default: "3"
 
 jobs:
   load-test:

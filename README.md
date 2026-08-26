@@ -148,11 +148,9 @@ Actions tab):
 - [Demo Video workflow](.github/workflows/demo-video-5p.yml) runs `RetroBoard.Tests.Play`, which
   drives 5 real headless-Chromium sessions through the actual UI (join → write → reveal → vote →
   advance to action items → convert) and commits the regenerated `docs/demo.gif`.
-- [Load Test workflow](.github/workflows/load-test.yml) runs `RetroBoard.Tests.LoadTest`
-  (20 boards x 20 participants x 5 cards each by default — configurable via workflow inputs up
-  toward the tool's full 100 x 100 x 5, though that scale was found to exceed a standard
-  GitHub-hosted runner's capacity — then an export per board) and reports `AddCard`/export latency
-  percentiles to the job summary.
+- [Load Test workflow](.github/workflows/load-test-100.yml) runs `RetroBoard.Tests.LoadTest`
+  (100 boards x 5 participants x 3 cards each by default — configurable via workflow inputs —
+  then an export per board) and reports `AddCard`/export latency percentiles to the job summary.
 - [Demo Load workflow](.github/workflows/demo-load-100p.yml) runs `RetroBoard.Tests.Play.Hundred`
   (see [Performance](#performance) below) and commits the regenerated
   `docs/hundred-resource-usage.svg`.

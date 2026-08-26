@@ -215,15 +215,15 @@ benchmarks/load tests — same posture as PlanningPoker's
   board) and failing on any export error. Board-arrival is throttled client-side (a bounded number
   of boards connect at once) purely to stay under a single test-driver machine's ephemeral port
   ceiling at very large scale (e.g. 100 x 100 = 10,000 connections) — it doesn't reduce the scale
-  being tested. Not gated into CI's `test` job; triggered manually via the
-  [Load Test workflow](.github/workflows/load-test.yml), whose `workflow_dispatch`/
-  `workflow_call` inputs default to 20 boards x 20 participants x 5 cards (400 connections) rather
-  than the tool's full 100 x 100 x 5 — a real 100 x 100 run was tried on a standard GitHub-hosted
-  runner (2 CPU / 7 GB RAM) and crashed about 20 minutes in with a plain "Connection reset by peer"
-  (the API's own log showed no exception), reading as the small shared runner running out of some
-  resource under 10,000 real concurrent connections rather than an app bug. The workflow's inputs
-  (or a direct manual run against bigger/self-hosted infrastructure) can still push back up toward
-  100 x 100.
+  being tested. Not gated into CI's `test` job; triggered manually (100 boards x 5 participants x 3
+  cards by default — 100 concurrent retros of a realistic size, configurable via the workflow's
+  `workflow_dispatch`/`workflow_call` inputs) via the
+  [Load Test workflow](.github/workflows/load-test-100.yml). A 100 x 100 (10,000-connection) run
+  was also tried, on a standard GitHub-hosted runner (2 CPU / 7 GB RAM): it ran for about 20
+  minutes before hitting a plain "Connection reset by peer" with no corresponding exception in the
+  API's own log — reads as the small shared runner running out of some resource under that many
+  real concurrent connections rather than an app bug. `set -o pipefail` in the workflow ensures a
+  crash like that surfaces as a genuine failed run rather than a false green.
 - A second tool, `RetroBoard.Tests.Play.Hundred` — same `Tests.Play.Hundred`-style tooling
   PlanningPoker built — drives 10 boards x 10 participants (100 real SignalR connections, no
   browsers) writing cards at a human pace (each board's round takes 15-20 wall-clock seconds, cards
