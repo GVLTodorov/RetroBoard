@@ -1,0 +1,35 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+
+# Rider / VS / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test / benchmark artifacts
+[Tt]est[Rr]esult*/
+BenchmarkDotNet.Artifacts/
+coverage*.json
+coverage*.xml
+coverage*.info
+artifacts/
+
+# Blazor WASM published assets that live under wwwroot at build time
+**/wwwroot/_framework/
+**/wwwroot/_content/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local env overrides
+*.env
+.env.local
+appsettings.Local.json
