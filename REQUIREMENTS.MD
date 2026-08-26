@@ -184,6 +184,12 @@ bare `<title>` — same posture as PlanningPoker's
   apps. The preview image is a dedicated `wwwroot/og-image.png` (1200x630, the standard OG size) —
   not the raw SVG icon/logo, since Slack/Twitter/X render SVG previews unreliably or not at all;
   `twitter:card` is `summary_large_image` to match that image's landscape aspect ratio.
+  `og-image.png` itself was produced by rendering a small standalone HTML page (gradient
+  background matching [Section 6](#6-visual-design)'s palette, the favicon SVG inlined, title +
+  tagline text) at a 1200x630 viewport via a headless-Chromium Playwright screenshot — not
+  hand-drawn or exported from a design tool, and there's no checked-in generator script for it
+  since it's a one-off asset, not a recurring build step; regenerate the same way if the
+  branding/tagline changes.
 - A `WebApplication` JSON-LD (`application/ld+json`) block describing the app as a free
   `BusinessApplication` for search engines.
 - `wwwroot/robots.txt` (allow all, points at the sitemap) and `wwwroot/sitemap.xml` (single-URL
