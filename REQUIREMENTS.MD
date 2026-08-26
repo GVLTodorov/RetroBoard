@@ -191,7 +191,12 @@ candidate for future work.
   step to drive, unlike PlanningPoker's equivalent tool. Not gated in CI (same non-gating
   treatment as [Section 9](#9-performance)'s load test); triggered manually via the
   [Demo Video workflow](.github/workflows/demo-video-5p.yml), which commits the regenerated
-  `docs/demo.gif`.
+  `docs/demo.gif`. `RetroBoard.Tests.Play.Twelve` — same `Tests.Play.Twelve`-style tooling
+  PlanningPoker built — runs the identical flow scaled to 1 facilitator + 11 guests, reusing
+  `RetroBoard.Tests.Play`'s `RetroBoardPlayer` via a project reference rather than duplicating it,
+  to show the board holding a full-size retro; triggered manually via the
+  [Demo Video (12 Participants) workflow](.github/workflows/demo-video-12p.yml), which commits
+  `docs/twelve.gif`.
 
 ## 9. Performance
 
@@ -218,31 +223,35 @@ benchmarks/load tests — same posture as PlanningPoker's
   ...) raised as built-in .NET exception types, translated to `HubException` by a single SignalR
   hub filter — same tradeoff PlanningPoker made, not a custom exception hierarchy.
 - A load test simulating many concurrent boards and participants writing rapidly, measuring
-  broadcast latency under load, not just correctness — same
-  `Tests.LoadTest`-style tooling PlanningPoker built. `RetroBoard.Tests.LoadTest` spins up N boards
-  x M participants over real SignalR connections, has every participant write K cards
-  (round-robin across the board's columns), then has each board's facilitator export it (Section
-  5.7) — reporting the `AddCard` round trip's p50/p95/p99/max latency (the hottest path: every
-  card add fans out an individualized per-viewer snapshot to every connected participant on that
-  board) and failing on any export error. Board-arrival is throttled client-side (a bounded number
-  of boards connect at once) purely to stay under a single test-driver machine's ephemeral port
-  ceiling at very large scale (e.g. 100 x 100 = 10,000 connections) — it doesn't reduce the scale
-  being tested. Not gated into CI's `test` job; triggered manually (100 boards x 5 participants x 3
-  cards by default — 100 concurrent retros of a realistic size, configurable via the workflow's
-  `workflow_dispatch`/`workflow_call` inputs) via the
-  [Load Test workflow](.github/workflows/load-test-100.yml). A 100 x 100 (10,000-connection) run
-  was also tried, on a standard GitHub-hosted runner (2 CPU / 7 GB RAM): it ran for about 20
-  minutes before hitting a plain "Connection reset by peer" with no corresponding exception in the
-  API's own log — reads as the small shared runner running out of some resource under that many
-  real concurrent connections rather than an app bug. `set -o pipefail` in the workflow ensures a
-  crash like that surfaces as a genuine failed run rather than a false green.
-- A second tool, `RetroBoard.Tests.Play.Hundred` — same `Tests.Play.Hundred`-style tooling
-  PlanningPoker built — drives 10 boards x 10 participants (100 real SignalR connections, no
-  browsers) writing cards at a human pace (each board's round takes 15-20 wall-clock seconds, cards
-  staggered rather than simultaneous) while sampling `RetroBoard.Api`'s own CPU% and working-set
-  memory and rendering the series as an SVG chart. Unlike PlanningPoker's Room, a Board's phase only
-  moves forward once (Writing → Voting → ActionItems), so there's no pick/reveal/reset cycle to
-  repeat — `AddCard` during the Writing phase is itself the repeatable, sustained hot path, so each
-  round is every participant adding one more card. Triggered manually via the
-  [Demo Load workflow](.github/workflows/demo-load-100p.yml), which commits the refreshed chart to
-  `docs/hundred-resource-usage.svg` (embedded in the README's Performance section).
+  broadcast latency *and* the app's own resource cost under load, not just correctness — same
+  `Tests.LoadTest`-style tooling PlanningPoker built, extended with the resource-sampling/SVG-chart
+  approach PlanningPoker instead keeps in a second tool (`Tests.Play.Hundred`); RetroBoard folds
+  both into one, since one manually-triggered load driver is simpler to reason about than two.
+  `RetroBoard.Tests.LoadTest` spins up N boards x M participants over real SignalR connections, has
+  every participant write K cards (round-robin across the board's columns), then has each board's
+  facilitator export it (Section 5.7) — reporting the `AddCard` round trip's p50/p95/p99/max
+  latency (the hottest path: every card add fans out an individualized per-viewer snapshot to
+  every connected participant on that board) and failing on any export error. While all of that
+  runs, it also samples `RetroBoard.Api`'s own CPU% and working-set memory at a fixed interval and
+  renders the series as a dependency-free SVG line chart. Board-arrival is throttled client-side (a
+  bounded number of boards connect at once) purely to stay under a single test-driver machine's
+  ephemeral port ceiling at very large scale (e.g. 100 x 100 = 10,000 connections) — it doesn't
+  reduce the scale being tested. Not gated into CI's `test` job; triggered manually (100 boards x 5
+  participants x 3 cards by default — 100 concurrent retros of a realistic size, configurable via
+  the workflow's `workflow_dispatch`/`workflow_call` inputs) via the
+  [Demo Load workflow](.github/workflows/demo-load-100p.yml), which also commits the refreshed
+  chart to `docs/load-resource-usage.svg` (embedded in the README's Performance section). A 100 x
+  100 (10,000-connection) run was also tried, on a standard GitHub-hosted runner (2 CPU / 7 GB
+  RAM): it ran for about 20 minutes before hitting a plain "Connection reset by peer" with no
+  corresponding exception in the API's own log — reads as the small shared runner running out of
+  some resource under that many real concurrent connections rather than an app bug. `set -o
+  pipefail` in the workflow ensures a crash like that surfaces as a genuine failed run rather than
+  a false green.
+- The [Demo All workflow](.github/workflows/demo-all.yml) chains the Demo Load and both Demo Video
+  workflows into one manual run (load, then the 12-participant video, then the 5-participant one —
+  heaviest/most-likely-to-catch-a-regression first, same ordering rationale as PlanningPoker's) —
+  same `demo-all.yml`-style orchestrator PlanningPoker built, using `workflow_call` on each (so
+  they still work standalone too) and `needs:` so they run strictly sequentially, since each ends
+  with its own `git push` to `main` and two of those racing would conflict; each still `git pull
+  --rebase origin main` right before its own push to pick up whatever the prior job in the same run
+  already pushed.

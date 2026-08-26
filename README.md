@@ -109,13 +109,14 @@ src/RetroBoard.Tests.Integration/  WebApplicationFactory + a real SignalR client
                                     the REST endpoint surface
 src/RetroBoard.Tests.Play/         Playwright: drives 5 real browser sessions through the actual
                                     UI to record the README's demo GIF (manual, see Testing below)
+src/RetroBoard.Tests.Play.Twelve/  Playwright: same flow as Tests.Play, scaled to 12 real browser
+                                    sessions, reusing its RetroBoardPlayer (manual)
 src/RetroBoard.Tests.LoadTest/     N boards x M participants over real SignalR connections,
-                                    reporting AddCard/export latency under load (manual)
+                                    reporting AddCard/export latency under load, and sampling the
+                                    API's own CPU/memory to draw docs/load-resource-usage.svg
+                                    (manual)
 src/RetroBoard.Tests.Benchmarks/   BenchmarkDotNet: domain hot paths (AddCard/CastVote/GetState)
                                     and hub-message serialization (source-gen vs. reflection)
-src/RetroBoard.Tests.Play.Hundred/ Console tool: 10 boards x 10 participants over real SignalR
-                                    connections (no browser), samples the API's own CPU/memory
-                                    while they write -- draws docs/hundred-resource-usage.svg
 ```
 
 The Client depends only on Contracts — never Domain — so the browser bundle never ships
@@ -143,31 +144,33 @@ board grace period (see [REQUIREMENTS.MD Section 5.4.5](REQUIREMENTS.MD#54-card-
 three tests alone take about a minute; everything else in the suite is fast.
 
 Three manual, non-gated tools round out the suite (not run by `dotnet test`, triggered from the
-Actions tab):
+Actions tab), plus an orchestrator that runs all three back-to-back:
 
 - [Demo Video workflow](.github/workflows/demo-video-5p.yml) runs `RetroBoard.Tests.Play`, which
   drives 5 real headless-Chromium sessions through the actual UI (join → write → reveal → vote →
   advance to action items → convert) and commits the regenerated `docs/demo.gif`.
-- [Load Test workflow](.github/workflows/load-test-100.yml) runs `RetroBoard.Tests.LoadTest`
+- [Demo Video (12 Participants) workflow](.github/workflows/demo-video-12p.yml) runs the same flow
+  at `RetroBoard.Tests.Play.Twelve`, scaled to 12 participants, and commits `docs/twelve.gif`.
+- [Demo Load workflow](.github/workflows/demo-load-100p.yml) runs `RetroBoard.Tests.LoadTest`
   (100 boards x 5 participants x 3 cards each by default — configurable via workflow inputs —
-  then an export per board) and reports `AddCard`/export latency percentiles to the job summary.
-- [Demo Load workflow](.github/workflows/demo-load-100p.yml) runs `RetroBoard.Tests.Play.Hundred`
-  (see [Performance](#performance) below) and commits the regenerated
-  `docs/hundred-resource-usage.svg`.
+  then an export per board), reports `AddCard`/export latency percentiles to the job summary, and
+  commits the regenerated resource-usage chart (see [Performance](#performance) below).
+- [Demo All workflow](.github/workflows/demo-all.yml) runs the three workflows above sequentially
+  in one Actions run (`needs:`-chained so their commits to `main` don't race).
 
 ## Performance
 
-![RetroBoard.Api CPU and memory while 10 boards of 10 participants write cards concurrently.](docs/hundred-resource-usage.svg)
+![RetroBoard.Api CPU and memory while 100 boards of 5 participants write cards and export concurrently.](docs/load-resource-usage.svg)
 
-`RetroBoard.Tests.Play.Hundred` drives 10 boards x 10 participants (100 real SignalR connections,
-no browsers) writing cards at a human pace — each board's round takes 15-20 wall-clock seconds,
-with cards landing at random moments rather than all at once — while sampling `RetroBoard.Api`'s
-own CPU% and working-set memory. It exists purely to see what the app costs under sustained
-concurrent load. Trigger the [Demo Load workflow](.github/workflows/demo-load-100p.yml) from the
-Actions tab to regenerate and commit the chart above, or run it manually against a live instance:
+While `RetroBoard.Tests.LoadTest` drives its boards and participants (see above), it also samples
+`RetroBoard.Api`'s own CPU% and working-set memory at a fixed interval and renders the series as
+an SVG chart — purely to see what the app costs under sustained concurrent load, on top of the
+latency numbers it already reports. Trigger the [Demo Load workflow](.github/workflows/demo-load-100p.yml)
+from the Actions tab to regenerate and commit the chart above, or run it manually against a live
+instance:
 
 ```bash
-dotnet run --project src/RetroBoard.Tests.Play.Hundred -- http://localhost:6233 <api-pid> docs/hundred-resource-usage.svg
+dotnet run --project src/RetroBoard.Tests.LoadTest -- http://localhost:6233 <api-pid> docs/load-resource-usage.svg 100 5 3
 ```
 
 ## Configuration

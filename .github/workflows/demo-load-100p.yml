@@ -1,16 +1,51 @@
-name: Demo Load (100 Participants, Resource Usage)
+name: Demo Load (100 Boards x 5 Participants, Resource Usage)
 
-# Manual only: this drives 10 boards x 10 participants (100 real SignalR connections, no browsers)
-# against a live instance purely to see what RetroBoard.Api itself costs in CPU/memory under
-# sustained concurrent load -- it produces a chart, not a recording, so it's kept separate from
-# demo-video-5p.yml (that needs a browser; this needs neither a browser nor any external key --
-# RetroBoard has no Giphy-style integration to configure).
+# Manual only: drives N boards x M participants (real SignalR connections, no browsers) against a
+# live instance, has every participant write K cards, then exports every board as its facilitator
+# -- while sampling RetroBoard.Api's own CPU/memory throughout and drawing the series as an SVG
+# chart -- purely to see what RetroBoard.Api itself costs (and whether it still behaves correctly)
+# under sustained concurrent load. Not gated into ci.yml, same non-gating treatment PlanningPoker
+# gives this class of test (REQUIREMENTS.MD Section 9's load/soak-test bullet): scale like this
+# isn't meant to block every push/PR, only to be run on demand from the Actions tab.
+#
+# Default is 100 boards x 5 participants x 3 cards (500 connections, 1,500 AddCard calls, then 100
+# exports) -- 100 concurrent retros of a realistic size, rather than 100 boards each with 100
+# participants. A 100x100 (10,000-connection) run was also tried, on a standard GitHub-hosted
+# runner (2 CPU / 7 GB RAM): it ran for about 20 minutes before hitting a plain "Connection reset by
+# peer" with no corresponding exception in the API's own log -- reads as the small shared runner
+# running out of some resource under that many real concurrent connections, not an app bug. The
+# inputs below can still push scale up toward that (or further, against bigger/self-hosted
+# infrastructure); `set -o pipefail` ensures a crash like that surfaces as a genuine failed run
+# rather than a false green.
 on:
   workflow_dispatch:
+    inputs:
+      board_count:
+        description: Number of boards
+        required: false
+        default: "100"
+      participants_per_board:
+        description: Participants per board
+        required: false
+        default: "5"
+      cards_per_participant:
+        description: Cards each participant writes
+        required: false
+        default: "3"
   workflow_call:
+    inputs:
+      board_count:
+        type: string
+        default: "100"
+      participants_per_board:
+        type: string
+        default: "5"
+      cards_per_participant:
+        type: string
+        default: "3"
 
 jobs:
-  measure:
+  load-100p:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,10 +82,25 @@ jobs:
           echo $! > api.pid
           timeout 30 bash -c 'until curl -sf http://localhost:6233/healthz >/dev/null; do sleep 1; done'
 
-      - name: Run 10x10 load and sample resource usage
+      - name: Run load test (writes, then export every board, sampling resource usage throughout)
+        env:
+          BOARD_COUNT: ${{ inputs.board_count }}
+          PARTICIPANTS_PER_BOARD: ${{ inputs.participants_per_board }}
+          CARDS_PER_PARTICIPANT: ${{ inputs.cards_per_participant }}
         run: |
-          dotnet run --project src/RetroBoard.Tests.Play.Hundred -c Release --no-build -- \
-            http://localhost:6233 "$(cat api.pid)" docs/hundred-resource-usage.svg 10 10 8
+          # `| tee` alone would let this step report success even if `dotnet run` crashes -- a pipe's
+          # exit status is its last command's (tee, which always succeeds), not the load test's. Bash
+          # doesn't check this by default, so it must be turned on explicitly.
+          set -o pipefail
+          dotnet run --project src/RetroBoard.Tests.LoadTest -c Release --no-build -- \
+            http://localhost:6233 "$(cat api.pid)" docs/load-resource-usage.svg \
+            "$BOARD_COUNT" "$PARTICIPANTS_PER_BOARD" "$CARDS_PER_PARTICIPANT" | tee load-test.log
+          {
+            echo "### Load test: $BOARD_COUNT boards x $PARTICIPANTS_PER_BOARD participants x $CARDS_PER_PARTICIPANT cards, then export"
+            echo '```'
+            cat load-test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Show app server log
         if: always()
@@ -64,11 +114,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/hundred-resource-usage.svg
+          git add docs/load-resource-usage.svg
           if git diff --cached --quiet; then
             echo "Resource-usage chart unchanged, nothing to commit."
           else
-            git commit -m "chore: refresh 10x10 resource-usage chart"
+            git commit -m "chore: refresh load-test resource-usage chart"
             # `main` may have moved since this job's checkout -- rebase onto whatever's actually
             # there before pushing. Safe here: this job only ever touches its own generated file.
             git pull --rebase origin main

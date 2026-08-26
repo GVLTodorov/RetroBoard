@@ -1,0 +1,33 @@
+name: Demo All (Sequential)
+
+# Manual-only orchestrator: runs all three demo workflows back-to-back in one Actions run, via
+# `uses:` (reusable workflows -- each of demo-load-100p.yml/demo-video-12p.yml/demo-video-5p.yml
+# declares `workflow_call:` alongside its own `workflow_dispatch:` so it still works standalone
+# too). Chained with `needs:` so they run strictly one after another, not in parallel -- each job
+# ends with a `git push` of its own result file (chart/gif), and two of those pushing to main at the
+# same time would race. `needs:` alone isn't enough, though: every job's own checkout still pins to
+# the SHA the overall run started from, so a later job doesn't see an earlier job's already-pushed
+# commit -- each workflow's commit step runs `git pull --rebase origin main` right before `git push`
+# to cover that. Order: heaviest/most-likely-to-catch-a-regression first (the 100-board load test
+# exercises the API itself under sustained load with no browser dependency), then the two browser
+# recordings, largest first.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  load-100p:
+    uses: ./.github/workflows/demo-load-100p.yml
+    secrets: inherit
+
+  video-12p:
+    needs: load-100p
+    uses: ./.github/workflows/demo-video-12p.yml
+    secrets: inherit
+
+  video-5p:
+    needs: video-12p
+    uses: ./.github/workflows/demo-video-5p.yml
+    secrets: inherit

@@ -7,6 +7,6 @@
   <Project Path="src/RetroBoard.Tests.Integration/RetroBoard.Tests.Integration.csproj" />
   <Project Path="src/RetroBoard.Tests.LoadTest/RetroBoard.Tests.LoadTest.csproj" />
   <Project Path="src/RetroBoard.Tests.Play/RetroBoard.Tests.Play.csproj" />
-  <Project Path="src/RetroBoard.Tests.Play.Hundred/RetroBoard.Tests.Play.Hundred.csproj" />
+  <Project Path="src/RetroBoard.Tests.Play.Twelve/RetroBoard.Tests.Play.Twelve.csproj" />
   <Project Path="src/RetroBoard.Tests.Unit/RetroBoard.Tests.Unit.csproj" />
 </Solution>
