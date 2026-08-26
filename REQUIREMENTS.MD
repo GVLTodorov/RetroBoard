@@ -215,6 +215,22 @@ benchmarks/load tests — same posture as PlanningPoker's
   board) and failing on any export error. Board-arrival is throttled client-side (a bounded number
   of boards connect at once) purely to stay under a single test-driver machine's ephemeral port
   ceiling at very large scale (e.g. 100 x 100 = 10,000 connections) — it doesn't reduce the scale
-  being tested. Not gated into CI's `test` job; triggered manually (100 boards x 100 participants
-  x 5 cards by default) via the
-  [Load Test workflow](.github/workflows/load-test-100.yml).
+  being tested. Not gated into CI's `test` job; triggered manually via the
+  [Load Test workflow](.github/workflows/load-test.yml), whose `workflow_dispatch`/
+  `workflow_call` inputs default to 20 boards x 20 participants x 5 cards (400 connections) rather
+  than the tool's full 100 x 100 x 5 — a real 100 x 100 run was tried on a standard GitHub-hosted
+  runner (2 CPU / 7 GB RAM) and crashed about 20 minutes in with a plain "Connection reset by peer"
+  (the API's own log showed no exception), reading as the small shared runner running out of some
+  resource under 10,000 real concurrent connections rather than an app bug. The workflow's inputs
+  (or a direct manual run against bigger/self-hosted infrastructure) can still push back up toward
+  100 x 100.
+- A second tool, `RetroBoard.Tests.Play.Hundred` — same `Tests.Play.Hundred`-style tooling
+  PlanningPoker built — drives 10 boards x 10 participants (100 real SignalR connections, no
+  browsers) writing cards at a human pace (each board's round takes 15-20 wall-clock seconds, cards
+  staggered rather than simultaneous) while sampling `RetroBoard.Api`'s own CPU% and working-set
+  memory and rendering the series as an SVG chart. Unlike PlanningPoker's Room, a Board's phase only
+  moves forward once (Writing → Voting → ActionItems), so there's no pick/reveal/reset cycle to
+  repeat — `AddCard` during the Writing phase is itself the repeatable, sustained hot path, so each
+  round is every participant adding one more card. Triggered manually via the
+  [Demo Load workflow](.github/workflows/demo-load-100p.yml), which commits the refreshed chart to
+  `docs/hundred-resource-usage.svg` (embedded in the README's Performance section).

@@ -1,14 +1,45 @@
-name: Load Test (100 Boards x 100 Participants)
+name: Load Test (20 Boards x 20 Participants)
 
-# Manual only: drives 100 boards x 100 participants (10,000 real SignalR connections, no browsers)
-# against a live instance, has every participant write 5 cards, then exports every board as its
-# facilitator -- purely to see what RetroBoard.Api itself costs (and whether it still behaves
-# correctly) under sustained concurrent load. Not gated into ci.yml, same non-gating treatment
-# PlanningPoker gives this class of test (REQUIREMENTS.MD Section 9's load/soak-test bullet):
-# scale like this isn't meant to block every push/PR, only to be run on demand from the Actions tab.
+# Manual only: drives N boards x M participants (real SignalR connections, no browsers) against a
+# live instance, has every participant write K cards, then exports every board as its facilitator
+# -- purely to see what RetroBoard.Api itself costs (and whether it still behaves correctly) under
+# sustained concurrent load. Not gated into ci.yml, same non-gating treatment PlanningPoker gives
+# this class of test (REQUIREMENTS.MD Section 9's load/soak-test bullet): scale like this isn't
+# meant to block every push/PR, only to be run on demand from the Actions tab.
+#
+# Default is 20x20 (400 connections), not the tool's full 100x100 (10,000 connections) capability:
+# a real 100x100 run was tried on a standard GitHub-hosted runner (2 CPU / 7 GB RAM) and crashed
+# about 20 minutes in with a plain "Connection reset by peer" -- the API's own log showed no
+# exception, so this reads as the small shared runner running out of some resource (file
+# descriptors, memory, or similar) under 10,000 real concurrent connections, not an app bug. 20x20
+# reliably completes on a standard runner; use the inputs below (or run the tool directly against
+# bigger/self-hosted infrastructure) to push back up toward 100x100.
 on:
   workflow_dispatch:
+    inputs:
+      board_count:
+        description: Number of boards
+        required: false
+        default: "20"
+      participants_per_board:
+        description: Participants per board
+        required: false
+        default: "20"
+      cards_per_participant:
+        description: Cards each participant writes
+        required: false
+        default: "5"
   workflow_call:
+    inputs:
+      board_count:
+        type: string
+        default: "20"
+      participants_per_board:
+        type: string
+        default: "20"
+      cards_per_participant:
+        type: string
+        default: "5"
 
 jobs:
   load-test:
@@ -46,12 +77,20 @@ jobs:
           echo $! > api.pid
           timeout 30 bash -c 'until curl -sf http://localhost:6233/healthz >/dev/null; do sleep 1; done'
 
-      - name: Run 100x100 load test (5 cards each, then export every board)
+      - name: Run load test (writes, then export every board)
+        env:
+          BOARD_COUNT: ${{ inputs.board_count }}
+          PARTICIPANTS_PER_BOARD: ${{ inputs.participants_per_board }}
+          CARDS_PER_PARTICIPANT: ${{ inputs.cards_per_participant }}
         run: |
+          # `| tee` alone would let this step report success even if `dotnet run` crashes -- a pipe's
+          # exit status is its last command's (tee, which always succeeds), not the load test's. Bash
+          # doesn't check this by default, so it must be turned on explicitly.
+          set -o pipefail
           dotnet run --project src/RetroBoard.Tests.LoadTest -c Release --no-build -- \
-            http://localhost:6233 100 100 5 | tee load-test.log
+            http://localhost:6233 "$BOARD_COUNT" "$PARTICIPANTS_PER_BOARD" "$CARDS_PER_PARTICIPANT" | tee load-test.log
           {
-            echo '### Load test: 100 boards x 100 participants x 5 cards, then export'
+            echo "### Load test: $BOARD_COUNT boards x $PARTICIPANTS_PER_BOARD participants x $CARDS_PER_PARTICIPANT cards, then export"
             echo '```'
             cat load-test.log
             echo '```'
