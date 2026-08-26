@@ -1,0 +1,21 @@
+<label class="field">
+    <span class="field-label">Template</span>
+    <select class="select-input" value="@SelectedTemplate"
+            @onchange="@(e => SelectedTemplateChanged.InvokeAsync(Enum.Parse<TemplateType>((string)e.Value!)))">
+        @foreach (var template in Templates)
+        {
+            <option value="@template.Template">@template.DisplayName</option>
+        }
+    </select>
+</label>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TemplateResponse> Templates { get; set; } = [];
+
+    [Parameter]
+    public TemplateType SelectedTemplate { get; set; }
+
+    [Parameter]
+    public EventCallback<TemplateType> SelectedTemplateChanged { get; set; }
+}

@@ -1,0 +1,60 @@
+@implements IDisposable
+
+<div class="timer">
+    @if (TimerEndsAtUtc is not null)
+    {
+        <span class="timer-value @(_remaining <= TimeSpan.Zero ? "timer-value-expired" : "")">
+            @FormatRemaining()
+        </span>
+    }
+    else
+    {
+        <span class="timer-value">--:--</span>
+    }
+
+    @if (IsFacilitator)
+    {
+        <div class="timer-controls">
+            <input class="text-input" type="number" min="10" max="3600" step="10" @bind="_durationSeconds" style="width: 6rem; min-height: 2.2rem;" />
+            <button type="button" class="secondary-button" @onclick="@(() => OnStart.InvokeAsync(_durationSeconds))">Start</button>
+            <button type="button" class="secondary-button" disabled="@(TimerEndsAtUtc is null)" @onclick="@(() => OnStop.InvokeAsync())">Stop</button>
+        </div>
+    }
+</div>
+
+@code {
+    private System.Threading.Timer? _tickTimer;
+    private TimeSpan _remaining;
+    private int _durationSeconds = RetroBoard.Contracts.Constants.DefaultTimerSeconds;
+
+    [Parameter]
+    public DateTime? TimerEndsAtUtc { get; set; }
+
+    [Parameter]
+    public bool IsFacilitator { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnStart { get; set; }
+
+    [Parameter]
+    public EventCallback OnStop { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _tickTimer = new System.Threading.Timer(_ => InvokeAsync(Tick), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    private void Tick()
+    {
+        _remaining = TimerEndsAtUtc is { } endsAt ? endsAt - DateTime.UtcNow : TimeSpan.Zero;
+        StateHasChanged();
+    }
+
+    private string FormatRemaining()
+    {
+        var clamped = _remaining <= TimeSpan.Zero ? TimeSpan.Zero : _remaining;
+        return $"{(int)clamped.TotalMinutes:D2}:{clamped.Seconds:D2}";
+    }
+
+    public void Dispose() => _tickTimer?.Dispose();
+}

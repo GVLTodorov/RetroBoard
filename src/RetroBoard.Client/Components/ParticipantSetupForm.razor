@@ -1,0 +1,26 @@
+@* Keyboard focus starts here on both the create-board (REQUIREMENTS.MD §5.1.2) and join (§5.2.2)
+   screens -- both consumers want the same behavior, so it lives here once instead of being
+   duplicated as page-level autofocus logic in Home.razor and Join.razor. *@
+<label class="field">
+    <span class="field-label">Your name</span>
+    <input class="text-input" type="text" maxlength="60" required @ref="_inputRef"
+           value="@Name" @oninput="@(e => NameChanged.InvokeAsync((string?)e.Value ?? string.Empty))" />
+</label>
+
+@code {
+    private ElementReference _inputRef;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> NameChanged { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _inputRef.FocusAsync();
+        }
+    }
+}

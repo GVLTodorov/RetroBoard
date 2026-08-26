@@ -1,0 +1,28 @@
+<div class="action-item-list">
+    @if (ActionItems.Count == 0)
+    {
+        <p class="field-hint">No action items yet.</p>
+    }
+
+    @foreach (var item in ActionItems)
+    {
+        <div class="action-item">
+            <span class="action-item-text">@item.Text</span>
+            <div class="action-item-meta">
+                @if (!string.IsNullOrWhiteSpace(item.AssigneeName))
+                {
+                    <span>Assignee: @item.AssigneeName</span>
+                }
+                @if (item.DueDate is { } due)
+                {
+                    <span>Due: @due.ToString("yyyy-MM-dd")</span>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ActionItemResponse> ActionItems { get; set; } = [];
+}

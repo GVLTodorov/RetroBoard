@@ -1,0 +1,51 @@
+@inject IJSRuntime JsRuntime
+@implements IAsyncDisposable
+
+<button type="button" class="copy-link-button" @onclick="CopyAsync"
+        title="@(_copied ? "Link copied!" : "Copy invite link")"
+        aria-label="@(_copied ? "Link copied!" : "Copy invite link")">
+    @if (_copied)
+    {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+    }
+    else
+    {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+    }
+</button>
+
+@code {
+    private IJSObjectReference? _jsModule;
+    private bool _copied;
+
+    [Parameter, EditorRequired]
+    public string InviteUrl { get; set; } = string.Empty;
+
+    private async Task CopyAsync()
+    {
+        _jsModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _jsModule.InvokeVoidAsync("copyToClipboard", InviteUrl);
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule is not null)
+        {
+            await _jsModule.DisposeAsync();
+        }
+    }
+}

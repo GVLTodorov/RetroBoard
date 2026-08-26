@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="src/RetroBoard.Api/RetroBoard.Api.csproj" />
+  <Project Path="src/RetroBoard.Client/RetroBoard.Client.csproj" />
+  <Project Path="src/RetroBoard.Infrastructure/RetroBoard.Infrastructure.csproj" />
+  <Project Path="src/RetroBoard.Tests.Component/RetroBoard.Tests.Component.csproj" />
+  <Project Path="src/RetroBoard.Tests.Integration/RetroBoard.Tests.Integration.csproj" />
+  <Project Path="src/RetroBoard.Tests.LoadTest/RetroBoard.Tests.LoadTest.csproj" />
+  <Project Path="src/RetroBoard.Tests.Play/RetroBoard.Tests.Play.csproj" />
+  <Project Path="src/RetroBoard.Tests.Unit/RetroBoard.Tests.Unit.csproj" />
+</Solution>

@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.git/
+.vscode/
+.github/
+**/wwwroot/_framework/
+**/wwwroot/_content/
+*.md
+*.MD

@@ -1,0 +1,114 @@
+@page "/"
+@inject BoardApiClient BoardApi
+@inject ParticipantSessionState Session
+@inject NavigationManager Navigation
+
+<section class="screen create-screen">
+    <div class="page-title">
+        <a href="/" class="home-link" aria-label="Back to home">
+            <img src="favicon.svg" alt="" class="home-icon" />
+        </a>
+        <h1>RetroBoard</h1>
+    </div>
+    <p class="tagline">Retrospect together, in real time.</p>
+
+    @if (WasRemoved)
+    {
+        <p class="form-error" role="alert">You were removed from the board by the facilitator.</p>
+    }
+
+    <form class="stack-form" @onsubmit="CreateBoardAsync">
+        <label class="field">
+            <span class="field-label">Board name</span>
+            <input class="text-input" type="text" maxlength="60" required
+                   value="@_boardName" @oninput="@(e => _boardName = (string?)e.Value ?? string.Empty)" />
+        </label>
+
+        <ParticipantSetupForm Name="@_participantName" NameChanged="@(v => _participantName = v)" />
+
+        <TemplatePicker Templates="_templates" SelectedTemplate="_template" SelectedTemplateChanged="@(v => _template = v)" />
+
+        <label class="field checkbox-field">
+            <input type="checkbox" @bind="_blurUntilReveal" />
+            <span>Blur cards until each column is revealed</span>
+        </label>
+
+        <div class="field-row">
+            <label class="field">
+                <span class="field-label">Vote budget</span>
+                <input class="text-input" type="number" min="1" max="50" @bind="_voteBudget" />
+            </label>
+            <label class="field">
+                <span class="field-label">Max votes per card</span>
+                <input class="text-input" type="number" min="1" max="50" @bind="_maxVotesPerCard" />
+            </label>
+        </div>
+
+        <label class="field checkbox-field">
+            <input type="checkbox" checked disabled />
+            <span>Facilitator (you'll be the only one who can reveal, advance, and manage this board)</span>
+        </label>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="form-error" role="alert">@_error</p>
+        }
+
+        <button type="submit" class="primary-button" disabled="@_isCreating">
+            @(_isCreating ? "Creating…" : "Create Board")
+        </button>
+    </form>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "removed")]
+    public bool WasRemoved { get; set; }
+
+    private string _boardName = string.Empty;
+    private string _participantName = string.Empty;
+    private IReadOnlyList<TemplateResponse> _templates = [];
+    private TemplateType _template = TemplateType.WentWellDidntWork;
+    private bool _blurUntilReveal;
+    private int _voteBudget = Constants.DefaultVoteBudget;
+    private int _maxVotesPerCard = Constants.DefaultMaxVotesPerCard;
+    private bool _isCreating;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var nameTask = BoardApi.GetBoardNameSuggestionAsync();
+        var templatesTask = BoardApi.GetTemplatesAsync();
+
+        await Task.WhenAll(nameTask, templatesTask);
+
+        _boardName = await nameTask;
+        _templates = await templatesTask;
+    }
+
+    private async Task CreateBoardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_boardName) || string.IsNullOrWhiteSpace(_participantName))
+        {
+            _error = "Please enter a board name and your name.";
+            return;
+        }
+
+        _isCreating = true;
+        _error = null;
+
+        var board = await BoardApi.CreateBoardAsync(
+            _boardName.Trim(), _template, _blurUntilReveal, _voteBudget, _maxVotesPerCard);
+        if (board is null)
+        {
+            _error = "That board name is already taken, or has no usable characters for a board link. We've suggested a different one below — try again.";
+            _boardName = await BoardApi.GetBoardNameSuggestionAsync();
+            _isCreating = false;
+            return;
+        }
+
+        Session.ParticipantName = _participantName.Trim();
+        await Session.SaveAsync();
+
+        Navigation.NavigateTo($"/{board.BoardId}");
+    }
+}

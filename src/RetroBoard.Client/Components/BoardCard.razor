@@ -1,0 +1,97 @@
+<div class="card @(_isDragOver ? "card-dragover" : "")" draggable="true"
+     @ondragstart="@(() => OnDragStart.InvokeAsync())"
+     @ondragenter="@(() => _isDragOver = true)" @ondragleave="@(() => _isDragOver = false)"
+     @ondragover="@(() => { })" @ondragover:preventDefault="true"
+     @ondrop="@(() => { _isDragOver = false; return OnDropped.InvokeAsync(); })">
+
+    @if (IsFacilitator)
+    {
+        <button type="button" class="card-delete-button" title="Delete card" aria-label="Delete card"
+                @onclick="@(() => OnDelete.InvokeAsync())">✕</button>
+    }
+
+    <p class="card-text">@Card.Text</p>
+
+    <div class="card-meta">
+        <span class="card-author">@Card.AuthorName</span>
+        @if (Card.VoteCount is { } count)
+        {
+            <span class="card-vote-count">@count vote@(count == 1 ? "" : "s")</span>
+        }
+        @if (Card.StackedCards.Count > 0)
+        {
+            <span class="card-stacked-count">+@Card.StackedCards.Count merged</span>
+        }
+    </div>
+
+    @if (Phase == BoardPhase.Voting)
+    {
+        <VoteControls MyVoteCount="Card.MyVoteCount" MaxVotesPerCard="MaxVotesPerCard"
+                       MyRemainingVoteBudgetElsewhere="MyRemainingVoteBudget + Card.MyVoteCount"
+                       OnChanged="@(count => OnVoteChanged.InvokeAsync(count))" />
+    }
+
+    @if (Phase == BoardPhase.ActionItems && IsFacilitator)
+    {
+        @if (_showConvertForm)
+        {
+            <div class="convert-action-item-form">
+                <input class="text-input" placeholder="Assignee (optional)" @bind="_assigneeName" />
+                <input class="text-input" type="date" @bind="_dueDate" />
+                <button type="button" class="secondary-button" @onclick="SubmitConvertAsync">Convert</button>
+            </div>
+        }
+        else
+        {
+            <button type="button" class="secondary-button" @onclick="@(() => _showConvertForm = true)">
+                Convert to action item
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private bool _showConvertForm;
+    private bool _isDragOver;
+    private string _assigneeName = string.Empty;
+    private DateOnly? _dueDate;
+
+    [Parameter, EditorRequired]
+    public CardResponse Card { get; set; } = null!;
+
+    [Parameter]
+    public BoardPhase Phase { get; set; }
+
+    [Parameter]
+    public bool IsFacilitator { get; set; }
+
+    [Parameter]
+    public int MaxVotesPerCard { get; set; }
+
+    /// <summary>The participant's remaining vote budget across the rest of the board -- not
+    /// counting whatever is already allocated to this specific card.</summary>
+    [Parameter]
+    public int MyRemainingVoteBudget { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnVoteChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnDragStart { get; set; }
+
+    [Parameter]
+    public EventCallback OnDropped { get; set; }
+
+    [Parameter]
+    public EventCallback<(string? AssigneeName, DateOnly? DueDate)> OnConvertToActionItem { get; set; }
+
+    private Task SubmitConvertAsync()
+    {
+        _showConvertForm = false;
+        var assignee = string.IsNullOrWhiteSpace(_assigneeName) ? null : _assigneeName.Trim();
+        return OnConvertToActionItem.InvokeAsync((assignee, _dueDate));
+    }
+}

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RetroBoard icon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b9c2f7"/>
+      <stop offset="45%" stop-color="#5b6ee1"/>
+      <stop offset="100%" stop-color="#2a1f66"/>
+    </linearGradient>
+    <linearGradient id="noteA" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#ece9fb"/>
+    </linearGradient>
+    <linearGradient id="noteB" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#efeafd"/>
+      <stop offset="100%" stop-color="#d8ccfb"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#241a52" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="104" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="146" y="176" width="140" height="140" rx="14"
+          fill="url(#noteB)" stroke="#4738a8" stroke-width="4"
+          transform="rotate(-12 216 246)"/>
+    <rect x="226" y="196" width="140" height="140" rx="14"
+          fill="url(#noteA)" stroke="#3c2f8f" stroke-width="4"
+          transform="rotate(9 296 266)"/>
+  </g>
+
+  <g stroke="#5b4bb8" stroke-width="10" stroke-linecap="round" opacity="0.65">
+    <line x1="250" y1="240" x2="330" y2="240"/>
+    <line x1="250" y1="268" x2="310" y2="268"/>
+  </g>
+
+  <circle cx="356" cy="146" r="34" fill="#8b5cf6" stroke="#2a1f66" stroke-width="4"/>
+  <circle cx="356" cy="146" r="10" fill="#ffffff"/>
+</svg>

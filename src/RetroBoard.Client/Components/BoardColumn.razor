@@ -1,0 +1,99 @@
+<div class="board-column">
+    <div class="board-column-header">
+        <h2 class="board-column-title">@Column.Title</h2>
+        @if (IsFacilitator && BlurUntilReveal && !Column.IsRevealed)
+        {
+            <button type="button" class="secondary-button" @onclick="@(() => OnReveal.InvokeAsync())">Reveal</button>
+        }
+    </div>
+
+    @if (Column.HiddenCardCounts.Count > 0)
+    {
+        <div class="hidden-card-counts">
+            @foreach (var hidden in Column.HiddenCardCounts)
+            {
+                <div class="hidden-card-count">
+                    <span>@hidden.AuthorName</span>
+                    <span>@hidden.Count card@(hidden.Count == 1 ? "" : "s")</span>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="card-list">
+        @foreach (var card in Column.Cards)
+        {
+            <BoardCard Card="card" Phase="Phase" IsFacilitator="IsFacilitator" MaxVotesPerCard="MaxVotesPerCard"
+                       MyRemainingVoteBudget="MyRemainingVoteBudget"
+                       OnDelete="@(() => OnDeleteCard.InvokeAsync(card.CardId))"
+                       OnVoteChanged="@(count => OnVoteChanged.InvokeAsync((card.CardId, count)))"
+                       OnDragStart="@(() => OnCardDragStart.InvokeAsync(card.CardId))"
+                       OnDropped="@(() => OnCardDropped.InvokeAsync(card.CardId))"
+                       OnConvertToActionItem="@(args => OnConvertToActionItem.InvokeAsync((card.CardId, args.AssigneeName, args.DueDate)))" />
+        }
+    </div>
+
+    @if (Phase == BoardPhase.Writing)
+    {
+        <form class="add-card-form" @onsubmit="SubmitNewCardAsync">
+            <textarea class="add-card-input" placeholder="Add a card…"
+                      @bind="_newCardText" @bind:event="oninput"></textarea>
+            <button type="submit" class="secondary-button" disabled="@string.IsNullOrWhiteSpace(_newCardText)">Add card</button>
+        </form>
+    }
+</div>
+
+@code {
+    private string _newCardText = string.Empty;
+
+    [Parameter, EditorRequired]
+    public ColumnResponse Column { get; set; } = null!;
+
+    [Parameter]
+    public BoardPhase Phase { get; set; }
+
+    [Parameter]
+    public bool IsFacilitator { get; set; }
+
+    [Parameter]
+    public bool BlurUntilReveal { get; set; }
+
+    [Parameter]
+    public int MaxVotesPerCard { get; set; }
+
+    [Parameter]
+    public int MyRemainingVoteBudget { get; set; }
+
+    [Parameter]
+    public EventCallback OnReveal { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnAddCard { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnDeleteCard { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid CardId, int VoteCount)> OnVoteChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnCardDragStart { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnCardDropped { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid CardId, string? AssigneeName, DateOnly? DueDate)> OnConvertToActionItem { get; set; }
+
+    private async Task SubmitNewCardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newCardText))
+        {
+            return;
+        }
+
+        var text = _newCardText.Trim();
+        _newCardText = string.Empty;
+        await OnAddCard.InvokeAsync(text);
+    }
+}

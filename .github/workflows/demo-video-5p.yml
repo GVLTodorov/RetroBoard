@@ -1,0 +1,97 @@
+name: Demo Video (5 Participants)
+
+# Manual only: this drives 5 real browsers against a live instance, which isn't cheap or safe to
+# run on every push/PR the way ci.yml's jobs are. Trigger it on-demand from the Actions tab
+# whenever the UI changes enough to be worth a fresh demo. Unlike PlanningPoker's equivalent
+# workflow, this needs no external API key -- RetroBoard has no optional Giphy avatar integration
+# to configure (REQUIREMENTS.MD Section 4.1: zero required configuration).
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build RetroBoard.slnx -c Release
+
+      # `dotnet build`'s output only serves static files (index.html, the Blazor framework files,
+      # css/js) via a manifest pointing back to source-tree intermediate paths -- fine for
+      # `dotnet run`, but running that DLL directly (as this job does) 404s on every static asset.
+      # `dotnet publish` bundles a real, portable wwwroot, same as the Dockerfile already does for
+      # the production image.
+      - name: Publish the app
+        run: dotnet publish src/RetroBoard.Api/RetroBoard.Api.csproj -c Release -o publish/api
+
+      - name: Install Playwright's Chromium
+        run: pwsh src/RetroBoard.Tests.Play/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Start the app
+        env:
+          ASPNETCORE_URLS: http://localhost:6233
+        run: |
+          # ContentRootPath defaults to the process's working directory (the repo root here), not
+          # the published DLL's own folder, so WebRootPath resolves to <repo root>/wwwroot (doesn't
+          # exist) unless --contentRoot is given explicitly. It must be absolute: a relative value
+          # gets resolved against the DLL's base directory, not this shell's cwd, and silently
+          # doubles the path.
+          dotnet publish/api/RetroBoard.Api.dll --contentRoot "$GITHUB_WORKSPACE/publish/api" > api.log 2>&1 &
+          echo $! > api.pid
+          timeout 30 bash -c 'until curl -sf http://localhost:6233/healthz >/dev/null; do sleep 1; done'
+
+      - name: Record demo
+        id: record
+        run: |
+          mkdir -p artifacts/demo-video
+          dotnet run --project src/RetroBoard.Tests.Play -c Release --no-build -- \
+            http://localhost:6233 artifacts/demo-video | tee artifacts/demo-video.log
+          video_path=$(grep -oP '(?<=^VIDEO_PATH=).+' artifacts/demo-video.log)
+          echo "webm_path=$video_path" >> "$GITHUB_OUTPUT"
+
+      - name: Show app server log
+        if: always()
+        run: cat api.log || true
+
+      - name: Stop the app
+        if: always()
+        run: kill "$(cat api.pid)" || true
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # GitHub's README sanitizer strips raw <video> tags entirely -- an mp4 can't be embedded
+      # inline that way. A GIF renders everywhere markdown images do, so that's the actual embed.
+      # stats_mode=diff + dither=none avoids the default dithering's visible noise on flat UI
+      # colors (this is screen content, not photographic video, so it doesn't need it).
+      - name: Convert to GIF
+        run: |
+          mkdir -p docs
+          ffmpeg -y -i "${{ steps.record.outputs.webm_path }}" \
+            -vf "fps=14,scale=1100:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=none" \
+            docs/demo.gif
+
+      - name: Commit updated demo GIF
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/demo.gif
+          if git diff --cached --quiet; then
+            echo "Demo GIF unchanged, nothing to commit."
+          else
+            git commit -m "chore: refresh demo gif"
+            # `main` may have moved since this job's checkout -- rebase onto whatever's actually
+            # there before pushing. Safe here: this job only ever touches its own generated file.
+            git pull --rebase origin main
+            git push
+          fi

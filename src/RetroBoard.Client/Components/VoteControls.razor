@@ -1,0 +1,26 @@
+<div class="vote-controls">
+    <button type="button" class="vote-button" disabled="@(MyVoteCount <= 0)"
+            aria-label="Remove a vote" @onclick="@(() => OnChanged.InvokeAsync(MyVoteCount - 1))">−</button>
+    <span class="vote-my-count">@MyVoteCount</span>
+    <button type="button" class="vote-button" disabled="@(!CanIncrement)"
+            aria-label="Add a vote" @onclick="@(() => OnChanged.InvokeAsync(MyVoteCount + 1))">+</button>
+</div>
+
+@code {
+    [Parameter]
+    public int MyVoteCount { get; set; }
+
+    [Parameter]
+    public int MaxVotesPerCard { get; set; }
+
+    /// <summary>The participant's remaining budget across the rest of the board, i.e. not counting
+    /// what's already on this card -- so incrementing this card is allowed exactly while there's
+    /// still room under both the per-card cap and the overall budget.</summary>
+    [Parameter]
+    public int MyRemainingVoteBudgetElsewhere { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnChanged { get; set; }
+
+    private bool CanIncrement => MyVoteCount < MaxVotesPerCard && MyRemainingVoteBudgetElsewhere > 0;
+}

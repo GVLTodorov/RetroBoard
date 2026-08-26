@@ -1,0 +1,60 @@
+@page "/{BoardId}/join"
+@inject BoardApiClient BoardApi
+@inject ParticipantSessionState Session
+@inject NavigationManager Navigation
+
+<section class="screen join-screen">
+    @if (_notFound)
+    {
+        <h1>Board not found</h1>
+        <p>This board may have ended. Double-check the link, or start a new one.</p>
+        <a class="primary-button" href="/">Create a new board</a>
+    }
+    else if (_board is not null)
+    {
+        <h1>Join "@_board.Name"</h1>
+
+        @* Enter submits natively -- this is a real <form>, no separate keydown handling needed
+           (REQUIREMENTS.MD §5.2.2). *@
+        <form class="stack-form" @onsubmit="JoinBoardAsync">
+            <ParticipantSetupForm Name="@_participantName" NameChanged="@(v => _participantName = v)" />
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="form-error" role="alert">@_error</p>
+            }
+
+            <button type="submit" class="primary-button">Join Board</button>
+        </form>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string BoardId { get; set; } = string.Empty;
+
+    private BoardSummaryResponse? _board;
+    private bool _notFound;
+    private string _participantName = string.Empty;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _board = await BoardApi.GetBoardAsync(BoardId);
+        _notFound = _board is null;
+    }
+
+    private async Task JoinBoardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_participantName))
+        {
+            _error = "Please enter your name.";
+            return;
+        }
+
+        Session.ParticipantName = _participantName.Trim();
+        await Session.SaveAsync();
+
+        Navigation.NavigateTo($"/{BoardId}");
+    }
+}

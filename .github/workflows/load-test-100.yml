@@ -1,0 +1,66 @@
+name: Load Test (100 Boards x 100 Participants)
+
+# Manual only: drives 100 boards x 100 participants (10,000 real SignalR connections, no browsers)
+# against a live instance, has every participant write 5 cards, then exports every board as its
+# facilitator -- purely to see what RetroBoard.Api itself costs (and whether it still behaves
+# correctly) under sustained concurrent load. Not gated into ci.yml, same non-gating treatment
+# PlanningPoker gives this class of test (REQUIREMENTS.MD Section 9's load/soak-test bullet):
+# scale like this isn't meant to block every push/PR, only to be run on demand from the Actions tab.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build RetroBoard.slnx -c Release
+
+      # `dotnet build`'s output only serves static files (index.html, the Blazor framework files,
+      # css/js) via a manifest pointing back to source-tree intermediate paths -- fine for
+      # `dotnet run`, but running that DLL directly (as this job does) 404s on every static asset.
+      # `dotnet publish` bundles a real, portable wwwroot, same as the Dockerfile already does for
+      # the production image.
+      - name: Publish the app
+        run: dotnet publish src/RetroBoard.Api/RetroBoard.Api.csproj -c Release -o publish/api
+
+      - name: Start the app
+        env:
+          ASPNETCORE_URLS: http://localhost:6233
+        run: |
+          # ContentRootPath defaults to the process's working directory (the repo root here), not
+          # the published DLL's own folder, so WebRootPath resolves to <repo root>/wwwroot (doesn't
+          # exist) unless --contentRoot is given explicitly. It must be absolute: a relative value
+          # gets resolved against the DLL's base directory, not this shell's cwd, and silently
+          # doubles the path.
+          dotnet publish/api/RetroBoard.Api.dll --contentRoot "$GITHUB_WORKSPACE/publish/api" > api.log 2>&1 &
+          echo $! > api.pid
+          timeout 30 bash -c 'until curl -sf http://localhost:6233/healthz >/dev/null; do sleep 1; done'
+
+      - name: Run 100x100 load test (5 cards each, then export every board)
+        run: |
+          dotnet run --project src/RetroBoard.Tests.LoadTest -c Release --no-build -- \
+            http://localhost:6233 100 100 5 | tee load-test.log
+          {
+            echo '### Load test: 100 boards x 100 participants x 5 cards, then export'
+            echo '```'
+            cat load-test.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show app server log
+        if: always()
+        run: cat api.log || true
+
+      - name: Stop the app
+        if: always()
+        run: kill "$(cat api.pid)" || true

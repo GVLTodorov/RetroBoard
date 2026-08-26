@@ -93,10 +93,11 @@ static files and exposes real-time board state over SignalR.
 - The player who **creates** the board is its **facilitator**, enforced server-side (first
   participant to join), not a client-supplied flag.
 - **Only the facilitator can**: start/stop the writing timer, reveal a column's cards (if the
-  board uses hidden-until-reveal, see [5.4](#54-card-lifecycle)), merge cards, delete any card,
-  advance the board from writing → voting → action-items phase, and remove a participant.
-  Non-facilitator participants see the relevant controls hidden, and any attempt is also rejected
-  server-side — never client-hidden only.
+  board uses hidden-until-reveal, see [5.4](#54-card-lifecycle)), delete any card, end voting
+  (reveal vote counts), advance the board from writing → voting → action-items phase, and remove a
+  participant. Non-facilitator participants see the relevant controls hidden, and any attempt is
+  also rejected server-side — never client-hidden only. Merging cards is the one exception: any
+  participant can do that (see [5.4.2](#54-card-lifecycle)), not just the facilitator.
 - The **template is fixed at creation time** and cannot be changed once inside the board, mirror
   of PlanningPoker's fixed-deck rule.
 
@@ -170,6 +171,15 @@ candidate for future work.
 - Collect code coverage (`coverlet.collector`) and render it with ReportGenerator as an HTML
   artifact plus a Markdown job-summary, informational only — same non-gating treatment as
   PlanningPoker.
+- `RetroBoard.Tests.Play` drives the real Home/Join/Board UI through Playwright — 1 facilitator +
+  4 guests join, write cards, the facilitator reveals blurred columns, everyone votes, the
+  facilitator ends voting, advances to action items, and converts a card — and doubles as a live
+  smoke test: every wait targets a specific element, so a stuck flow fails with a
+  `TimeoutException` instead of silently producing a broken demo. RetroBoard has no Giphy/avatar
+  step to drive, unlike PlanningPoker's equivalent tool. Not gated in CI (same non-gating
+  treatment as [Section 9](#9-performance)'s load test); triggered manually via the
+  [Demo Video workflow](.github/workflows/demo-video-5p.yml), which commits the regenerated
+  `docs/demo.gif`.
 
 ## 9. Performance
 
@@ -185,7 +195,16 @@ benchmarks/load tests — same posture as PlanningPoker's
 - Expected rule violations (non-facilitator trying to reveal/advance/remove, voting past budget,
   ...) raised as built-in .NET exception types, translated to `HubException` by a single SignalR
   hub filter — same tradeoff PlanningPoker made, not a custom exception hierarchy.
-- A load/soak test simulating many concurrent boards and participants writing/voting rapidly,
-  measuring broadcast latency and CPU/memory under load — candidate for the same
-  `Tests.LoadTest`/`Tests.Play.Hundred`-style tooling PlanningPoker built, once the core app
-  exists.
+- A load test simulating many concurrent boards and participants writing rapidly, measuring
+  broadcast latency under load, not just correctness — same
+  `Tests.LoadTest`-style tooling PlanningPoker built. `RetroBoard.Tests.LoadTest` spins up N boards
+  x M participants over real SignalR connections, has every participant write K cards
+  (round-robin across the board's columns), then has each board's facilitator export it (Section
+  5.7) — reporting the `AddCard` round trip's p50/p95/p99/max latency (the hottest path: every
+  card add fans out an individualized per-viewer snapshot to every connected participant on that
+  board) and failing on any export error. Board-arrival is throttled client-side (a bounded number
+  of boards connect at once) purely to stay under a single test-driver machine's ephemeral port
+  ceiling at very large scale (e.g. 100 x 100 = 10,000 connections) — it doesn't reduce the scale
+  being tested. Not gated into CI's `test` job; triggered manually (100 boards x 100 participants
+  x 5 cards by default) via the
+  [Load Test workflow](.github/workflows/load-test-100.yml).

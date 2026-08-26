@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <!--
+      This app is hosted via the classic Api-references-Client + UseBlazorFrameworkFiles pattern,
+      not the newer unified Blazor Web App + MapStaticAssets model. In that shape, the fingerprint
+      placeholder OverrideHtmlAssetPlaceholders emits into index.html's script tag is never
+      resolved (see PlanningPoker's own note on this, verified there against a Release-published,
+      Production-run instance), so it's explicitly disabled here in favor of the plain,
+      unfingerprinted reference the SDK has served correctly for hosted WASM apps for years.
+    -->
+    <OverrideHtmlAssetPlaceholders>false</OverrideHtmlAssetPlaceholders>
+    <!--
+      Trim/AOT tradeoff (REQUIREMENTS.MD Section 9), same call PlanningPoker made and measured for
+      the same reasons: this app is UI-event-driven (form fills, small JSON messages, button
+      clicks), not compute-heavy, so AOT's runtime-speed win doesn't apply while its 2 to 4x size
+      cost directly hurts download size. Trimming (IL linking) is already on by default for a
+      Release Blazor WASM publish; AOT is left off.
+    -->
+    <RunAOTCompilation>false</RunAOTCompilation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RetroBoard.Infrastructure\RetroBoard.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,265 @@
+@page "/{BoardId}"
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR
+@inject ParticipantSessionState Session
+@inject NavigationManager Navigation
+@inject BoardApiClient BoardApi
+@inject IJSRuntime JsRuntime
+@inject IBoardHubClientFactory HubFactory
+
+<section class="screen board-screen">
+    @if (_notFound)
+    {
+        <h1>Board not found</h1>
+        <p>This board may have ended. Double-check the link, or start a new one.</p>
+        <a class="primary-button" href="/">Create a new board</a>
+    }
+    else if (_state is null)
+    {
+        <p>Connecting…</p>
+    }
+    else
+    {
+        <header class="board-header">
+            <div class="page-title">
+                <a href="/" class="home-link" aria-label="Back to home">
+                    <img src="favicon.svg" alt="" class="home-icon" />
+                </a>
+                <h1>@_state.Name</h1>
+                <CopyInviteButton InviteUrl="@InviteUrl" />
+            </div>
+            <div class="board-header-actions">
+                <span class="phase-badge">@PhaseLabel</span>
+                @if (IsFacilitator)
+                {
+                    <button type="button" class="secondary-button" disabled="@_isExporting" @onclick="ExportAsync">
+                        @(_isExporting ? "Exporting…" : "Export Markdown")
+                    </button>
+                }
+            </div>
+        </header>
+
+        @if (!string.IsNullOrEmpty(_actionError))
+        {
+            <p class="form-error" role="alert">@_actionError</p>
+        }
+
+        <ParticipantList Participants="_state.Participants" LocalParticipantId="_participantId"
+                          IsLocalFacilitator="IsFacilitator" OnRemoveParticipant="RemoveParticipantAsync" />
+
+        <Timer TimerEndsAtUtc="_state.TimerEndsAtUtc" IsFacilitator="IsFacilitator"
+               OnStart="StartTimerAsync" OnStop="StopTimerAsync" />
+
+        @if (_state.Phase == BoardPhase.Voting)
+        {
+            <p class="vote-budget-remaining">You have @MyRemainingVoteBudget of @_state.VoteBudget votes left.</p>
+        }
+
+        <div class="columns-grid">
+            @foreach (var column in _state.Columns)
+            {
+                <BoardColumn Column="column" Phase="_state.Phase" IsFacilitator="IsFacilitator"
+                             BlurUntilReveal="_state.BlurUntilReveal" MaxVotesPerCard="_state.MaxVotesPerCard"
+                             MyRemainingVoteBudget="MyRemainingVoteBudget"
+                             OnReveal="@(() => RevealColumnAsync(column.ColumnId))"
+                             OnAddCard="@(text => AddCardAsync(column.ColumnId, text))"
+                             OnDeleteCard="@(cardId => DeleteCardAsync(column.ColumnId, cardId))"
+                             OnVoteChanged="@(args => CastVoteAsync(args.CardId, args.VoteCount))"
+                             OnCardDragStart="@(cardId => _draggedCardId = cardId)"
+                             OnCardDropped="@(targetId => MergeCardAsync(column.ColumnId, targetId))"
+                             OnConvertToActionItem="@(args => ConvertToActionItemAsync(args.CardId, args.AssigneeName, args.DueDate))" />
+            }
+        </div>
+
+        @if (IsFacilitator && _state.Phase != BoardPhase.ActionItems)
+        {
+            <div>
+                @if (_state.Phase == BoardPhase.Writing)
+                {
+                    <button type="button" class="primary-button" @onclick="AdvancePhaseAsync">Start Voting</button>
+                }
+                else if (!_state.VotesRevealed)
+                {
+                    <button type="button" class="primary-button" @onclick="EndVotingAsync">End Voting</button>
+                }
+                else
+                {
+                    <button type="button" class="primary-button" @onclick="AdvancePhaseAsync">Advance to Action Items</button>
+                }
+            </div>
+        }
+
+        @if (_state.Phase == BoardPhase.ActionItems || _state.ActionItems.Count > 0)
+        {
+            <h2>Action Items</h2>
+            <ActionItemList ActionItems="_state.ActionItems" />
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string BoardId { get; set; } = string.Empty;
+
+    private IBoardHubClient? _hub;
+    private BoardStateResponse? _state;
+    private bool _notFound;
+    private Guid _participantId;
+    private Guid? _draggedCardId;
+    private bool _isExporting;
+    private string? _actionError;
+    private IJSObjectReference? _jsModule;
+
+    private bool IsFacilitator => _state?.Participants.FirstOrDefault(p => p.ParticipantId == _participantId)?.IsFacilitator ?? false;
+
+    private int MyRemainingVoteBudget => _state is null
+        ? 0
+        : _state.VoteBudget - _state.Columns.SelectMany(c => c.Cards).Sum(c => c.MyVoteCount);
+
+    private string InviteUrl => Navigation.ToAbsoluteUri($"/{BoardId}").ToString();
+
+    private string PhaseLabel => _state?.Phase switch
+    {
+        BoardPhase.Writing => "Writing",
+        BoardPhase.Voting => "Voting",
+        BoardPhase.ActionItems => "Action Items",
+        _ => string.Empty,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+
+        if (string.IsNullOrWhiteSpace(Session.ParticipantName))
+        {
+            Navigation.NavigateTo($"/{BoardId}/join");
+            return;
+        }
+
+        _hub = HubFactory.Create();
+        _hub.BoardStateChanged += OnBoardStateChanged;
+        _hub.RemovedFromBoard += OnRemovedFromBoard;
+
+        await _hub.StartAsync();
+
+        // If we already joined this exact board before (a refresh, not a fresh visit), pass that
+        // participant id along so the server reclaims the same identity -- facilitator status,
+        // everything -- instead of us reappearing as a brand new joiner. See BoardHub.JoinBoard.
+        var existingParticipantId = Session.BoardId == BoardId ? Session.ParticipantId : null;
+
+        JoinBoardResponse result;
+        try
+        {
+            result = await _hub.JoinBoardAsync(BoardId, Session.ParticipantName, existingParticipantId);
+        }
+        catch (HubException)
+        {
+            // Most likely a link to a board that has since ended -- boards live in memory only, so
+            // an old link outlives a server restart or the board's natural cleanup after it emptied.
+            _notFound = true;
+            return;
+        }
+
+        _participantId = result.ParticipantId;
+        _state = result.State;
+
+        Session.BoardId = BoardId;
+        Session.ParticipantId = _participantId;
+        await Session.SaveAsync();
+    }
+
+    private void OnBoardStateChanged(BoardStateResponse state)
+    {
+        _state = state;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnRemovedFromBoard()
+    {
+        Session.ParticipantName = string.Empty;
+        Session.BoardId = null;
+        Session.ParticipantId = null;
+        InvokeAsync(async () =>
+        {
+            await Session.SaveAsync();
+            Navigation.NavigateTo("/?removed=true");
+        });
+    }
+
+    private Task AddCardAsync(Guid columnId, string text) => RunHubActionAsync(() => _hub!.AddCardAsync(columnId, text));
+
+    private Task DeleteCardAsync(Guid columnId, Guid cardId) => RunHubActionAsync(() => _hub!.DeleteCardAsync(columnId, cardId));
+
+    private Task MergeCardAsync(Guid columnId, Guid targetCardId)
+    {
+        if (_draggedCardId is not { } sourceCardId || sourceCardId == targetCardId)
+        {
+            return Task.CompletedTask;
+        }
+
+        _draggedCardId = null;
+        return RunHubActionAsync(() => _hub!.MergeCardAsync(columnId, sourceCardId, targetCardId));
+    }
+
+    private Task RevealColumnAsync(Guid columnId) => RunHubActionAsync(() => _hub!.RevealColumnAsync(columnId));
+
+    private Task CastVoteAsync(Guid cardId, int voteCount) => RunHubActionAsync(() => _hub!.CastVoteAsync(cardId, voteCount));
+
+    private Task AdvancePhaseAsync() => RunHubActionAsync(() => _hub!.AdvancePhaseAsync());
+
+    private Task EndVotingAsync() => RunHubActionAsync(() => _hub!.EndVotingAsync());
+
+    private Task ConvertToActionItemAsync(Guid cardId, string? assigneeName, DateOnly? dueDate) =>
+        RunHubActionAsync(() => _hub!.ConvertToActionItemAsync(cardId, assigneeName, dueDate));
+
+    private Task StartTimerAsync(int seconds) => RunHubActionAsync(() => _hub!.StartTimerAsync(seconds));
+
+    private Task StopTimerAsync() => RunHubActionAsync(() => _hub!.StopTimerAsync());
+
+    private Task RemoveParticipantAsync(Guid targetParticipantId) =>
+        RunHubActionAsync(() => _hub!.RemoveParticipantAsync(targetParticipantId));
+
+    private async Task RunHubActionAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            _actionError = null;
+        }
+        catch (HubException ex)
+        {
+            _actionError = ex.Message;
+        }
+    }
+
+    private async Task ExportAsync()
+    {
+        _isExporting = true;
+        var markdown = await BoardApi.ExportBoardMarkdownAsync(BoardId, _participantId);
+        _isExporting = false;
+
+        if (markdown is null)
+        {
+            _actionError = "Only the facilitator can export this board.";
+            return;
+        }
+
+        _jsModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _jsModule.InvokeVoidAsync("downloadFile", $"{BoardId}.md", markdown, "text/markdown");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            _hub.BoardStateChanged -= OnBoardStateChanged;
+            _hub.RemovedFromBoard -= OnRemovedFromBoard;
+            await _hub.DisposeAsync();
+        }
+
+        if (_jsModule is not null)
+        {
+            await _jsModule.DisposeAsync();
+        }
+    }
+}

@@ -1,0 +1,34 @@
+<div class="participant-list">
+    @foreach (var participant in Participants)
+    {
+        <div class="participant-card @(participant.IsFacilitator ? "participant-card-facilitator" : "")">
+            <div>
+                <div class="participant-card-name">@participant.Name</div>
+                @if (participant.IsFacilitator)
+                {
+                    <div class="participant-card-badge">Facilitator</div>
+                }
+            </div>
+            @if (IsLocalFacilitator && participant.ParticipantId != LocalParticipantId)
+            {
+                <button type="button" class="participant-card-remove"
+                        title="Remove @participant.Name" aria-label="Remove @participant.Name"
+                        @onclick="@(() => OnRemoveParticipant.InvokeAsync(participant.ParticipantId))">✕</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ParticipantResponse> Participants { get; set; } = [];
+
+    [Parameter]
+    public Guid LocalParticipantId { get; set; }
+
+    [Parameter]
+    public bool IsLocalFacilitator { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnRemoveParticipant { get; set; }
+}
