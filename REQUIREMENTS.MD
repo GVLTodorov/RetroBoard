@@ -170,6 +170,27 @@ candidate for future work.
 - A dedicated **SVG icon/logo**, checked into the repo (README header, favicon, Blazor app icon),
   reflecting the calm palette from [Section 6](#6-visual-design).
 
+### 7.1 SEO & social metadata
+
+`wwwroot/index.html` carries a full metadata layer for the public-facing deployment, not just a
+bare `<title>` — same posture as PlanningPoker's
+[Section 9.1](https://github.com/GVLTodorov/PlanningPoker/blob/main/REQUIREMENTS.MD#91-seo--social-metadata):
+
+- A descriptive `<title>` and `<meta name="description">`/`keywords` targeting
+  sprint-retrospective search terms, plus `<link rel="canonical">` pointing at the live deployment
+  URL (`https://retro.devspace.tech/`).
+- Open Graph (`og:*`) and Twitter Card (`twitter:*`) tags so a shared board link renders a real
+  preview card (title, description, image) instead of a bare URL when pasted into Slack/social
+  apps. The preview image is a dedicated `wwwroot/og-image.png` (1200x630, the standard OG size) —
+  not the raw SVG icon/logo, since Slack/Twitter/X render SVG previews unreliably or not at all;
+  `twitter:card` is `summary_large_image` to match that image's landscape aspect ratio.
+- A `WebApplication` JSON-LD (`application/ld+json`) block describing the app as a free
+  `BusinessApplication` for search engines.
+- `wwwroot/robots.txt` (allow all, points at the sitemap) and `wwwroot/sitemap.xml` (single-URL
+  sitemap for the root page) — what actually gets submitted to Google Search Console.
+- A commented-out Google Analytics (GA4) snippet with a placeholder Measurement ID — inert until
+  someone creates a GA4 property and swaps in a real ID; not wired up by default.
+
 ## 8. Testing Strategy
 
 - Everything must be unit testable:
