@@ -138,6 +138,18 @@ The identity a participant picked on the create/join screen (name) is mirrored i
 [5.6](https://github.com/GVLTodorov/PlanningPoker/blob/main/REQUIREMENTS.MD#56-session-persistence-across-a-page-refresh):
 survives an in-tab refresh, doesn't linger across unrelated future visits.
 
+### 5.6a Rejoin after a transport-level reconnect (no page refresh)
+
+Distinct from [5.6](#56-session-persistence-across-a-page-refresh): the SignalR connection itself
+uses `WithAutomaticReconnect()`, which silently re-establishes transport connectivity after a drop
+(Wi-Fi blip, laptop sleep/wake, mobile network switch) without a page refresh — but the reconnected
+transport gets a new connection id, and the server's per-connection board/participant tracking has
+no entry for it. The client detects this (`BoardHubClient.Reconnected`) and re-invokes `JoinBoard`
+with the same participant id to reclaim server-side tracking and refresh board state, so subsequent
+actions (add card, vote, etc.) keep working instead of failing with "Not connected to a board." —
+same rationale as PlanningPoker's
+[5.6a](https://github.com/GVLTodorov/PlanningPoker/blob/main/REQUIREMENTS.MD#56a-rejoin-after-a-transport-level-reconnect-no-page-refresh).
+
 ### 5.7 Export
 
 At the end of a retro, the facilitator can export the board (all columns' cards + the action-item

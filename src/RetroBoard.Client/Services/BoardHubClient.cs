@@ -13,6 +13,7 @@ public sealed class BoardHubClient : IBoardHubClient
 
     public event Action<BoardStateResponse>? BoardStateChanged;
     public event Action? RemovedFromBoard;
+    public event Action? Reconnected;
 
     public BoardHubClient(NavigationManager navigation)
         : this(new HubConnectionBuilder()
@@ -34,6 +35,18 @@ public sealed class BoardHubClient : IBoardHubClient
 
         _connection.On<BoardStateResponse>(Constants.BoardStateChangedEvent, state => BoardStateChanged?.Invoke(state));
         _connection.On(Constants.RemovedFromBoardEvent, () => RemovedFromBoard?.Invoke());
+
+        // WithAutomaticReconnect() restores transport connectivity transparently, but the new
+        // connection has a fresh ConnectionId -- the server's per-connection board/participant
+        // tracking (IParticipantTracker) has no entry for it until JoinBoard runs again. Without
+        // this, every hub method after a reconnect throws "Not connected to a board." the moment the
+        // user next adds a card or votes. The caller re-invokes JoinBoardAsync with the existing
+        // participant id here.
+        _connection.Reconnected += _ =>
+        {
+            Reconnected?.Invoke();
+            return Task.CompletedTask;
+        };
     }
 
     public HubConnectionState State => _connection.State;

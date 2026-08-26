@@ -10,6 +10,7 @@ public interface IBoardHubClient : IAsyncDisposable
 {
     event Action<BoardStateResponse>? BoardStateChanged;
     event Action? RemovedFromBoard;
+    event Action? Reconnected;
 
     HubConnectionState State { get; }
 

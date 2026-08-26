@@ -139,6 +139,7 @@
         _hub = HubFactory.Create();
         _hub.BoardStateChanged += OnBoardStateChanged;
         _hub.RemovedFromBoard += OnRemovedFromBoard;
+        _hub.Reconnected += OnReconnected;
 
         await _hub.StartAsync();
 
@@ -183,6 +184,25 @@
         {
             await Session.SaveAsync();
             Navigation.NavigateTo("/?removed=true");
+        });
+    }
+
+    private void OnReconnected()
+    {
+        InvokeAsync(async () =>
+        {
+            if (_hub is null)
+            {
+                return;
+            }
+
+            // Reclaims this participant id server-side (see BoardHub.JoinBoard) so the hub methods
+            // this page still calls -- AddCard, CastVote, etc. -- work again after the transport's
+            // own automatic reconnect landed us on a new, untracked ConnectionId. Also refreshes
+            // _state in case anything changed on the board while we were disconnected.
+            var result = await _hub.JoinBoardAsync(BoardId, Session.ParticipantName, _participantId);
+            _state = result.State;
+            StateHasChanged();
         });
     }
 
@@ -254,6 +274,7 @@
         {
             _hub.BoardStateChanged -= OnBoardStateChanged;
             _hub.RemovedFromBoard -= OnRemovedFromBoard;
+            _hub.Reconnected -= OnReconnected;
             await _hub.DisposeAsync();
         }
 
