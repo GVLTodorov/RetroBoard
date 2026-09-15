@@ -6,7 +6,8 @@
   <em>Real-time, self-hosted sprint retrospective board.</em>
 
   [![CI](https://github.com/GVLTodorov/RetroBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/GVLTodorov/RetroBoard/actions/workflows/ci.yml)
-  Line: ![Line coverage](badges/line_coverage.svg) &nbsp; Branch: ![Branch coverage](badges/branch_coverage.svg)
+  ![Line coverage](badges/line_coverage.svg)
+  ![Branch coverage](badges/branch_coverage.svg)
 
   ![Demo: 5 participants join a board, write cards, the facilitator reveals a blurred column, everyone votes, and a top card becomes an action item.](docs/demo.gif)
 </div>
