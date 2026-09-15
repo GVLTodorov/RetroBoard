@@ -17,6 +17,8 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -42,7 +44,7 @@ jobs:
         with:
           reports: ./coverage/**/coverage.cobertura.xml
           targetdir: ./coverage/report
-          reporttypes: Html;MarkdownSummaryGithub
+          reporttypes: Html;MarkdownSummaryGithub;Badges
 
       - name: Add coverage summary to job summary
         run: cat ./coverage/report/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
@@ -52,6 +54,20 @@ jobs:
         with:
           name: coverage-report
           path: ./coverage/report/
+
+      - name: Update coverage badges
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p badges
+          cp ./coverage/report/badge_linecoverage.svg badges/line_coverage.svg
+          cp ./coverage/report/badge_branchcoverage.svg badges/branch_coverage.svg
+
+      - name: Commit updated badges
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: update coverage badges [skip ci]"
+          file_pattern: "badges/*.svg"
 
   # Tracks the Blazor WASM download size -- "the primary perf metric users actually feel"
   # (REQUIREMENTS.MD Section 9). Deliberately not in `release`'s `needs:`: perf checks don't gate
